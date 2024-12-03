@@ -15,9 +15,10 @@ import { ensureSufficientBalance } from "../payments/ensureBalance";
 import { AgentExecutionStatus, generateStepId } from "@nevermined-io/payments";
 
 /**
- * Processes steps received from the subscription.
+ * Processes incoming steps received from the subscription.
+ * Steps are processed based on their name, and the relevant handler is invoked.
  *
- * @param payments - Payments API instance.
+ * @param payments - Payments API instance used for querying and updating steps.
  * @returns A function to handle incoming step data.
  */
 export function processSteps(payments: any) {
@@ -32,6 +33,7 @@ export function processSteps(payments: any) {
       message: `Processing Step ${step.step_id} [ ${step.step_status} ]: ${step.input_query}`,
     });
 
+    // Ensure that only pending steps are processed
     if (step.step_status !== AgentExecutionStatus.Pending) {
       logger.warn(
         `${step.task_id} :: Step ${step.step_id} is not pending. Skipping...`
@@ -39,6 +41,7 @@ export function processSteps(payments: any) {
       return;
     }
 
+    // Route step to the appropriate handler based on its name
     switch (step.name) {
       case "init":
         await handleInitStep(step, payments);
@@ -72,16 +75,19 @@ export function processSteps(payments: any) {
 }
 
 /**
- * Handles the initialization step and creates subsequent steps.
+ * Handles the initialization step by creating subsequent steps in the workflow.
+ * These steps are linked in a sequential order through their predecessor IDs.
  *
  * @param step - The current step being processed.
  * @param payments - Payments API instance.
  */
 export async function handleInitStep(step: any, payments: any) {
+  // Generate unique IDs for the subsequent steps
   const scriptStepId = generateStepId();
   const characterStepId = generateStepId();
   const imageStepId = generateStepId();
 
+  // Define the steps with their predecessors to enforce order
   const steps = [
     {
       step_id: scriptStepId,
@@ -106,6 +112,7 @@ export async function handleInitStep(step: any, payments: any) {
     },
   ];
 
+  // Create the steps in the Nevermined network
   const createResult = await payments.query.createSteps(
     step.did,
     step.task_id,
@@ -121,6 +128,7 @@ export async function handleInitStep(step: any, payments: any) {
         : `Error creating steps: ${JSON.stringify(createResult.data)}`,
   });
 
+  // Mark the initialization step as completed
   await payments.query.updateStep(step.did, {
     ...step,
     step_status: AgentExecutionStatus.Completed,
@@ -129,12 +137,13 @@ export async function handleInitStep(step: any, payments: any) {
 }
 
 /**
- * Handles a step by querying an agent.
+ * Handles a step by querying a sub-agent for task execution.
+ * Ensures sufficient balance in the plan and validates task completion.
  *
  * @param step - The current step being processed.
- * @param agentDid - The DID of the agent.
- * @param agentName - The name of the agent for logging.
- * @param planDid - The plan DID to check for sufficient balance.
+ * @param agentDid - The DID of the sub-agent responsible for the task.
+ * @param agentName - A friendly name for the sub-agent for logging purposes.
+ * @param planDid - The DID of the plan associated with the agent.
  * @param payments - Payments API instance.
  */
 export async function handleStepWithAgent(
@@ -144,10 +153,14 @@ export async function handleStepWithAgent(
   planDid: string,
   payments: any
 ) {
+  // Check if the plan has sufficient balance and attempt to replenish if needed
   const hasBalance = await ensureSufficientBalance(planDid, step, payments);
   if (!hasBalance) return;
 
+  // Retrieve access permissions for the agent
   const accessConfig = await payments.getServiceAccessConfig(agentDid);
+
+  // Define the data payload for the task
   const taskData = {
     query: step.input_query,
     name: step.name,
@@ -155,6 +168,7 @@ export async function handleStepWithAgent(
     artifacts: [],
   };
 
+  // Create a task and validate its completion through a callback
   const result = await payments.query.createTask(
     agentDid,
     taskData,
@@ -163,6 +177,7 @@ export async function handleStepWithAgent(
       const taskLog = JSON.parse(data);
 
       if (taskLog.task_status === "Completed") {
+        // Validate the task upon successful completion
         await validateGenericTask(
           taskLog.task_id,
           agentDid,
@@ -192,10 +207,10 @@ export async function handleStepWithAgent(
 
 /**
  * Handles image generation for multiple characters.
- * Ensures all tasks are tracked and marks the step as completed only after all tasks finish.
+ * Creates tasks for each character and ensures the step is marked as completed
+ * only when all tasks are successfully validated.
  *
  * @param step - The current step being processed.
- * @param planDid - The plan DID for checking balance.
  * @param payments - Payments API instance.
  */
 export async function handleImageGenerationForCharacters(
@@ -206,12 +221,13 @@ export async function handleImageGenerationForCharacters(
     ? JSON.parse(JSON.parse(step.input_artifacts))
     : [];
 
-  const tasks: Promise<void>[] = []; // Array to track all task promises
+  // Track all task promises for parallel execution
+  const tasks: Promise<any[]>[] = [];
 
   for (const character of characters) {
     const prompt = generateTextToImagePrompt(character);
 
-    // Push each task validation promise to the tasks array
+    // Add each task to the promises array
     tasks.push(
       queryAgentWithPrompt(
         step,
@@ -224,10 +240,10 @@ export async function handleImageGenerationForCharacters(
   }
 
   try {
-    // Wait for all image generation tasks to complete
+    // Wait for all tasks to complete
     const artifacts = await Promise.all(tasks);
 
-    // Mark the step as completed only if all tasks are successful
+    // Update the step as completed upon successful task execution
     const result = await payments.query.updateStep(step.did, {
       ...step,
       step_status: "Completed",
@@ -236,21 +252,16 @@ export async function handleImageGenerationForCharacters(
       output_artifacts: artifacts,
     });
 
-    result.status === 201
-      ? logMessage(payments, {
-          task_id: step.task_id,
-          level: "info",
-          message: "Step marked as completed successfully.",
-        })
-      : logMessage(payments, {
-          task_id: step.task_id,
-          level: "error",
-          message: `Error marking step as completed: ${JSON.stringify(
-            result.data
-          )}`,
-        });
+    logMessage(payments, {
+      task_id: step.task_id,
+      level: result.status === 201 ? "info" : "error",
+      message:
+        result.status === 201
+          ? "Step marked as completed successfully."
+          : `Error marking step as completed: ${JSON.stringify(result.data)}`,
+    });
   } catch (error) {
-    // Handle failures if any task fails
+    // Handle step failure if any task fails
     await payments.query.updateStep(step.did, {
       ...step,
       step_status: "Failed",
@@ -266,10 +277,10 @@ export async function handleImageGenerationForCharacters(
 }
 
 /**
- * Generates a text-to-image prompt from a character object.
+ * Generates a prompt string for a text-to-image model from a character object.
  *
- * @param character - The character object.
- * @returns The generated prompt.
+ * @param character - The character object containing attributes for the prompt.
+ * @returns The generated prompt string.
  */
 export function generateTextToImagePrompt(character: any): string {
   return Object.entries(character)
@@ -281,14 +292,18 @@ export function generateTextToImagePrompt(character: any): string {
 
 /**
  * Queries an agent using the Nevermined Payments API with a prompt.
- * Returns a classic promise that resolves or rejects based on task completion.
+ * The function ensures sufficient balance, retrieves access permissions,
+ * creates a task for the agent, and validates the task completion using a callback.
+ * It resolves or rejects a promise based on the task's completion status.
  *
  * @param step - The current step being processed.
- * @param prompt - The prompt to send to the agent.
- * @param agentName - The name of the agent for logging purposes.
- * @param payments - Payments API instance.
- * @param validateTaskFn - Callback function to validate task completion.
- * @returns A promise resolving when the task is fully validated.
+ * @param prompt - The input prompt sent to the agent.
+ * @param agentName - The name of the agent, used for logging purposes.
+ * @param payments - The Nevermined Payments API instance.
+ * @param validateTaskFn - A callback function to validate the task's completion.
+ *                          This function handles task-specific validations and updates the step.
+ * @returns A promise that resolves when the task is validated successfully,
+ *          or rejects if an error occurs during task creation or validation.
  */
 export async function queryAgentWithPrompt(
   step: any,
@@ -298,57 +313,64 @@ export async function queryAgentWithPrompt(
   validateTaskFn: (
     taskId: string,
     accessConfig: any,
-    parentStep: any,
-    prompt: string,
     payments: any
-  ) => Promise<void>
-): Promise<void> {
+  ) => Promise<any[]>
+): Promise<any[]> {
   return new Promise(async (resolve, reject) => {
     try {
+      // Prepare the data payload for the task to be created
       const taskData = {
-        query: prompt,
-        name: step.name,
-        additional_params: [],
-        artifacts: [],
+        query: prompt, // The main input for the agent's task
+        name: step.name, // The step name associated with the task
+        additional_params: [], // Any additional parameters required by the task
+        artifacts: [], // Placeholder for input artifacts, if any
       };
 
+      // Step 1: Ensure the plan has sufficient balance
       const hasBalance = await ensureSufficientBalance(
         IMAGE_GENERATOR_PLAN_DID,
         step,
         payments
       );
-      if (!hasBalance) return;
+      if (!hasBalance) {
+        // If balance is insufficient, resolve gracefully without proceeding
+        return resolve([]);
+      }
 
+      // Step 2: Retrieve access permissions for the agent
       const accessConfig = await payments.getServiceAccessConfig(
         IMAGE_GENERATOR_DID
       );
 
+      // Step 3: Create a task for the agent
       const result = await payments.query.createTask(
-        IMAGE_GENERATOR_DID,
-        taskData,
-        accessConfig,
+        IMAGE_GENERATOR_DID, // The agent DID
+        taskData, // Task data to send to the agent
+        accessConfig, // Access permissions
         async (data) => {
-          try {
-            const taskLog = JSON.parse(data);
+          // Step 4: Handle the task's progress or completion through the callback
 
+          try {
+            const taskLog = JSON.parse(data); // Parse the task log from the agent
+
+            // Check if the task is still in progress or completed
             if (!taskLog.task_status || taskLog.task_status !== "Completed") {
               await logMessage(payments, {
                 task_id: step.task_id,
                 level: "info",
                 message: `Intermediate log for ${agentName}: ${taskLog.message}`,
               });
-              return;
+              return; // Exit the callback if the task is not yet completed. Another callback will be triggered later.
             }
 
-            // Validate the task and resolve the promise on success
+            // Step 5: Task is completed, validate it using the provided validation function
             const artifacts = await validateTaskFn(
-              taskLog.task_id,
-              accessConfig,
-              step,
-              prompt,
-              payments
+              taskLog.task_id, // Task ID from the agent
+              accessConfig, // Access permissions for validation
+              payments // Payments API instance
             );
-            resolve(artifacts); // Resolve the promise after successful validation
+
+            resolve(artifacts);
           } catch (error) {
             reject(
               new Error(
@@ -359,8 +381,9 @@ export async function queryAgentWithPrompt(
         }
       );
 
+      // Step 6: Handle task creation errors
       if (result.status !== 201) {
-        reject(
+        return reject(
           new Error(
             `Error creating task for ${agentName}: ${JSON.stringify(
               result.data
@@ -375,6 +398,7 @@ export async function queryAgentWithPrompt(
         message: `Task created successfully for ${agentName}.`,
       });
     } catch (error) {
+      // Handle unexpected errors during task creation or setup
       reject(
         new Error(
           `Error in queryAgentWithPrompt for ${agentName}: ${error.message}`
