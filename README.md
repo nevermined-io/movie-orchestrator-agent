@@ -15,7 +15,7 @@
 4. [Architecture Overview](#architecture-overview)
    - [Plans and Agents](#plans-and-agents)
    - [Workflow and Steps](#workflow-and-steps)
-5. [Tutorial](#tutorial)
+5. [How to create your own complex agent](#how-to-create-your-own-complex-agent)
    - [1. Generating Steps](#1-generating-steps)
    - [2. Sub-Agent Task Management](#2-sub-agent-task-management)
    - [3. Validating Tasks and Completing Steps](#3-validating-tasks-and-completing-steps)
@@ -305,7 +305,7 @@ License
 -------
 
 ```
-Copyright 2024 Nevermined
+Copyright 2024 Nevermined AG
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
