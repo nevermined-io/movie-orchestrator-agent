@@ -4,7 +4,28 @@
 
 > A TypeScript-based orchestrator agent demonstrating how to process tasks using Nevermined's Payments API. This agent orchestrates workflows involving multiple **steps** and **sub-agent tasks** in a structured and secure pipeline.
 
----
+* * *
+
+Related Projects
+----------------
+
+This project is part of a larger workflow that explores the interconnection between agents and how can they communicate and work together. Please, refer to these projects in order to have a full view of the whole process
+
+1.  [Movie Orchestrator Agent](https://github.com/nevermined-io/movie-orchestrator-agent):
+    
+    *   Coordinates the entire workflow, ensuring smooth task execution across agents.
+2.  [Movie Script Generator Agent](https://github.com/nevermined-io/movie-script-generator-agent):
+    
+    *   Generates movie scripts based on input ideas.
+3.  [Character Extractor Agent](https://github.com/nevermined-io/character-extractor-agent):
+    
+    *   Extracts character descriptions from movie scripts for further processing.
+
+4.  [Image Generator Agent](https://github.com/nevermined-io/image-generator-agent):
+    
+    *   Generates realistic character images based on their descriptions.
+
+* * *
 
 ## Table of Contents
 1. [Introduction](#introduction)
