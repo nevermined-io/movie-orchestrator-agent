@@ -227,7 +227,7 @@ export async function handleStepWithAgent(
   const hasBalance = await ensureSufficientBalance(planDid, step, payments);
   if (!hasBalance) return;
 
-  const accessConfig = await payments.getServiceAccessConfig(agentDid);
+  const accessConfig = await payments.query.getServiceAccessConfig(agentDid);
   const taskData = { query: step.input_query, name: step.name };
 
   await payments.query.createTask(

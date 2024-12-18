@@ -158,7 +158,7 @@ export async function handleStepWithAgent(
   if (!hasBalance) return;
 
   // Retrieve access permissions for the agent
-  const accessConfig = await payments.getServiceAccessConfig(agentDid);
+  const accessConfig = await payments.query.getServiceAccessConfig(agentDid);
 
   // Define the data payload for the task
   const taskData = {
@@ -167,6 +167,10 @@ export async function handleStepWithAgent(
     additional_params: [],
     artifacts: [],
   };
+
+  logger.info(
+    `Creating task for ${agentName}... and data: ${JSON.stringify(taskData)}`
+  );
 
   // Create a task and validate its completion through a callback
   const result = await payments.query.createTask(
@@ -223,6 +227,14 @@ export async function handleImageGenerationForCharacters(
 
   // Track all task promises for parallel execution
   const tasks: Promise<any[]>[] = [];
+
+  const hasBalance = await ensureSufficientBalance(
+    IMAGE_GENERATOR_PLAN_DID,
+    step,
+    payments,
+    characters.length
+  );
+  if (!hasBalance) return;
 
   for (const character of characters) {
     const prompt = generateTextToImagePrompt(character);
@@ -284,10 +296,9 @@ export async function handleImageGenerationForCharacters(
  */
 export function generateTextToImagePrompt(character: any): string {
   return Object.entries(character)
-    .map(([key, value]) => `${key}: ${value}`)
-    .filter((entry) => entry !== "name")
-    .join(", ")
-    .replace(/,.*:/g, ",");
+    .filter(([key, _]) => key !== "name")
+    .map(([_, value]) => value)
+    .join(", ");
 }
 
 /**
@@ -326,29 +337,24 @@ export async function queryAgentWithPrompt(
         artifacts: [], // Placeholder for input artifacts, if any
       };
 
-      // Step 1: Ensure the plan has sufficient balance
-      const hasBalance = await ensureSufficientBalance(
-        IMAGE_GENERATOR_PLAN_DID,
-        step,
-        payments
-      );
-      if (!hasBalance) {
-        // If balance is insufficient, resolve gracefully without proceeding
-        return resolve([]);
-      }
-
-      // Step 2: Retrieve access permissions for the agent
-      const accessConfig = await payments.getServiceAccessConfig(
+      // Step 1: Retrieve access permissions for the agent
+      const accessConfig = await payments.query.getServiceAccessConfig(
         IMAGE_GENERATOR_DID
       );
 
-      // Step 3: Create a task for the agent
+      logger.info(
+        `Creating task for ${agentName}... with data: ${JSON.stringify(
+          taskData
+        )}`
+      );
+
+      // Step 2: Create a task for the agent
       const result = await payments.query.createTask(
         IMAGE_GENERATOR_DID, // The agent DID
         taskData, // Task data to send to the agent
         accessConfig, // Access permissions
         async (data) => {
-          // Step 4: Handle the task's progress or completion through the callback
+          // Step 3: Handle the task's progress or completion through the callback
 
           try {
             const taskLog = JSON.parse(data); // Parse the task log from the agent
@@ -363,7 +369,7 @@ export async function queryAgentWithPrompt(
               return; // Exit the callback if the task is not yet completed. Another callback will be triggered later.
             }
 
-            // Step 5: Task is completed, validate it using the provided validation function
+            // Step 4: Task is completed, validate it using the provided validation function
             const artifacts = await validateTaskFn(
               taskLog.task_id, // Task ID from the agent
               accessConfig, // Access permissions for validation
@@ -381,7 +387,7 @@ export async function queryAgentWithPrompt(
         }
       );
 
-      // Step 6: Handle task creation errors
+      // Step 5: Handle task creation errors
       if (result.status !== 201) {
         return reject(
           new Error(

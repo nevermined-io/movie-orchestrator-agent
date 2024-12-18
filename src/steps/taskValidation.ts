@@ -1,5 +1,6 @@
 import { logMessage } from "../utils/logMessage";
 import { IMAGE_GENERATOR_DID } from "../config/env";
+import { logger } from "../logger/logger";
 
 /**
  * Validates the completion status of a generic task and updates the parent step accordingly.
@@ -71,6 +72,8 @@ export async function validateImageGenerationTask(
   accessConfig: any,
   payments: any
 ): Promise<any[]> {
+  logger.info(`Validating image generation task ${taskId}...`);
+
   // Retrieve the result of the image generation task from the agent
   const taskResult = await payments.query.getTaskWithSteps(
     IMAGE_GENERATOR_DID,
