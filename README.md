@@ -28,7 +28,7 @@ This project is part of a larger workflow that explores the interconnection betw
 
 #### Workflow Diagram:
 
-![[Init Step] --> [generateScript] --> [extractCharacters] --> [generateImagesForCharacters]](https://github.com/nevermined-io/movie-orchestrator-agent/blob/main/flow_img.png?raw=true)
+![[Init Step] --> [generateScript] --> [generateImagesForCharacters]](https://github.com/nevermined-io/movie-orchestrator-agent/blob/main/flow_img.png?raw=true)
 
 
 * * *
@@ -162,7 +162,7 @@ In **Nevermined**, a **Plan (PLAN\_DID)** represents a subscription that allows 
 1.  **Init Step**:
     
     *   Always the first step in a workflow.
-    *   Creates subsequent steps (e.g., `generateScript`, `extractCharacters`, `generateImagesForCharacters`).
+    *   Creates subsequent steps (e.g., `generateScript`, `generateImagesForCharacters`).
 2.  **Step Lifecycle**:
     
     *   **Balance Check**: Ensure the plan has sufficient credits.
@@ -200,8 +200,7 @@ export async function handleInitStep(step: any, payments: any) {
 
   const steps = [
     { step_id: scriptStepId, task_id: step.task_id, name: "generateScript", predecessor: step.step_id },
-    { step_id: characterStepId, task_id: step.task_id, name: "extractCharacters", predecessor: scriptStepId },
-    { step_id: imageStepId, task_id: step.task_id, name: "generateImagesForCharacters", predecessor: characterStepId },
+    { step_id: imageStepId, task_id: step.task_id, name: "generateVideoForCharacters", predecessor: characterStepId },
   ];
 
   await payments.query.createSteps(step.did, step.task_id, { steps });
@@ -238,7 +237,7 @@ export async function handleStepWithAgent(
       const taskLog = JSON.parse(data);
 
       if (taskLog.task_status === "Completed") {
-        await validateGenericTask(
+        await validateScriptGenerationTask(
           taskLog.task_id,
           agentDid,
           accessConfig,

@@ -1,14 +1,13 @@
 import { logMessage } from "../utils/logMessage";
 import {
-  validateGenericTask,
-  validateImageGenerationTask,
+  validateScriptGenerationTask,
+  validateVideoGenerationTask,
 } from "./taskValidation";
 import {
   SCRIPT_GENERATOR_DID,
-  CHARACTER_EXTRACTOR_DID,
   THIS_PLAN_DID,
-  IMAGE_GENERATOR_PLAN_DID,
-  IMAGE_GENERATOR_DID,
+  VIDEO_GENERATOR_PLAN_DID,
+  VIDEO_GENERATOR_DID,
 } from "../config/env";
 import { logger } from "../logger/logger";
 import { ensureSufficientBalance } from "../payments/ensureBalance";
@@ -47,7 +46,7 @@ export function processSteps(payments: any) {
         await handleInitStep(step, payments);
         break;
       case "generateScript":
-        await handleStepWithAgent(
+        await handleScriptGeneration(
           step,
           SCRIPT_GENERATOR_DID,
           "Script Generator",
@@ -55,17 +54,8 @@ export function processSteps(payments: any) {
           payments
         );
         break;
-      case "extractCharacters":
-        await handleStepWithAgent(
-          step,
-          CHARACTER_EXTRACTOR_DID,
-          "Character Extractor",
-          THIS_PLAN_DID,
-          payments
-        );
-        break;
-      case "generateImagesForCharacters":
-        await handleImageGenerationForCharacters(step, payments);
+      case "generateVideoForCharacters":
+        await handleVideoGenerationForCharacters(step, payments);
         break;
       default:
         logger.warn(`Unrecognized step name: ${step.name}. Skipping...`);
@@ -84,8 +74,7 @@ export function processSteps(payments: any) {
 export async function handleInitStep(step: any, payments: any) {
   // Generate unique IDs for the subsequent steps
   const scriptStepId = generateStepId();
-  const characterStepId = generateStepId();
-  const imageStepId = generateStepId();
+  const videoStepId = generateStepId();
 
   // Define the steps with their predecessors to enforce order
   const steps = [
@@ -97,20 +86,15 @@ export async function handleInitStep(step: any, payments: any) {
       is_last: false,
     },
     {
-      step_id: characterStepId,
+      step_id: videoStepId,
       task_id: step.task_id,
       predecessor: scriptStepId,
-      name: "extractCharacters",
-      is_last: false,
-    },
-    {
-      step_id: imageStepId,
-      task_id: step.task_id,
-      predecessor: characterStepId,
-      name: "generateImagesForCharacters",
+      name: "generateVideoForCharacters",
       is_last: true,
     },
   ];
+
+  logger.info(`Creating steps: ${JSON.stringify(steps)}`);
 
   // Create the steps in the Nevermined network
   const createResult = await payments.query.createSteps(
@@ -146,7 +130,7 @@ export async function handleInitStep(step: any, payments: any) {
  * @param planDid - The DID of the plan associated with the agent.
  * @param payments - Payments API instance.
  */
-export async function handleStepWithAgent(
+export async function handleScriptGeneration(
   step: any,
   agentDid: string,
   agentName: string,
@@ -180,22 +164,14 @@ export async function handleStepWithAgent(
     async (data) => {
       const taskLog = JSON.parse(data);
 
-      if (taskLog.task_status === "Completed") {
-        // Validate the task upon successful completion
-        await validateGenericTask(
-          taskLog.task_id,
-          agentDid,
-          accessConfig,
-          step,
-          payments
-        );
-      } else {
-        logMessage(payments, {
-          task_id: step.task_id,
-          level: "info",
-          message: `LOG: ${taskLog.message}`,
-        });
-      }
+      // Validate the task upon successful completion
+      await validateScriptGenerationTask(
+        taskLog.task_id,
+        agentDid,
+        accessConfig,
+        step,
+        payments
+      );
     }
   );
 
@@ -210,43 +186,42 @@ export async function handleStepWithAgent(
 }
 
 /**
- * Handles image generation for multiple characters.
+ * Handles video generation for multiple characters.
  * Creates tasks for each character and ensures the step is marked as completed
  * only when all tasks are successfully validated.
  *
  * @param step - The current step being processed.
  * @param payments - Payments API instance.
  */
-export async function handleImageGenerationForCharacters(
+export async function handleVideoGenerationForCharacters(
   step: any,
   payments: any
 ) {
-  const characters = step.input_artifacts
+  let characters = step.input_artifacts
     ? JSON.parse(JSON.parse(step.input_artifacts))
     : [];
+
+  characters = JSON.parse(characters[0]);
 
   // Track all task promises for parallel execution
   const tasks: Promise<any[]>[] = [];
 
   const hasBalance = await ensureSufficientBalance(
-    IMAGE_GENERATOR_PLAN_DID,
+    VIDEO_GENERATOR_PLAN_DID,
     step,
     payments,
     characters.length
   );
   if (!hasBalance) return;
 
-  for (const character of characters) {
-    const prompt = generateTextToImagePrompt(character);
-
+  for (const character of characters["prompts"]) {
     // Add each task to the promises array
     tasks.push(
       queryAgentWithPrompt(
         step,
-        prompt,
-        "Image Generator",
+        character,
         payments,
-        validateImageGenerationTask
+        validateVideoGenerationTask
       )
     );
   }
@@ -258,10 +233,9 @@ export async function handleImageGenerationForCharacters(
     // Update the step as completed upon successful task execution
     const result = await payments.query.updateStep(step.did, {
       ...step,
-      step_status: "Completed",
-      output:
-        "Image generation tasks completed successfully for all characters.",
-      output_artifacts: artifacts,
+      step_status: AgentExecutionStatus.Completed,
+      output: step.input_query,
+      output_artifacts: { ...characters, artifacts },
     });
 
     logMessage(payments, {
@@ -277,30 +251,16 @@ export async function handleImageGenerationForCharacters(
     await payments.query.updateStep(step.did, {
       ...step,
       step_status: "Failed",
-      output: "One or more image generation tasks failed.",
+      output: "One or more video generation tasks failed.",
     });
 
     logMessage(payments, {
       task_id: step.task_id,
       level: "error",
-      message: `Error processing image generation tasks: ${error.message}`,
+      message: `Error processing video generation tasks: ${error.message}`,
     });
   }
 }
-
-/**
- * Generates a prompt string for a text-to-image model from a character object.
- *
- * @param character - The character object containing attributes for the prompt.
- * @returns The generated prompt string.
- */
-export function generateTextToImagePrompt(character: any): string {
-  return Object.entries(character)
-    .filter(([key, _]) => key !== "name")
-    .map(([_, value]) => value)
-    .join(", ");
-}
-
 /**
  * Queries an agent using the Nevermined Payments API with a prompt.
  * The function ensures sufficient balance, retrieves access permissions,
@@ -319,13 +279,12 @@ export function generateTextToImagePrompt(character: any): string {
 export async function queryAgentWithPrompt(
   step: any,
   prompt: string,
-  agentName: string,
   payments: any,
   validateTaskFn: (
     taskId: string,
     accessConfig: any,
     payments: any
-  ) => Promise<any[]>
+  ) => Promise<string>
 ): Promise<any[]> {
   return new Promise(async (resolve, reject) => {
     try {
@@ -339,32 +298,30 @@ export async function queryAgentWithPrompt(
 
       // Step 1: Retrieve access permissions for the agent
       const accessConfig = await payments.query.getServiceAccessConfig(
-        IMAGE_GENERATOR_DID
+        VIDEO_GENERATOR_DID
       );
 
-      logger.info(
-        `Creating task for ${agentName}... with data: ${JSON.stringify(
-          taskData
-        )}`
-      );
+      logger.info(`Creating task for video generation agent`);
 
       // Step 2: Create a task for the agent
       const result = await payments.query.createTask(
-        IMAGE_GENERATOR_DID, // The agent DID
+        VIDEO_GENERATOR_DID, // The agent DID
         taskData, // Task data to send to the agent
         accessConfig, // Access permissions
         async (data) => {
           // Step 3: Handle the task's progress or completion through the callback
-
           try {
             const taskLog = JSON.parse(data); // Parse the task log from the agent
 
             // Check if the task is still in progress or completed
-            if (!taskLog.task_status || taskLog.task_status !== "Completed") {
+            if (
+              !taskLog.task_status ||
+              taskLog.task_status !== AgentExecutionStatus.Completed
+            ) {
               await logMessage(payments, {
                 task_id: step.task_id,
                 level: "info",
-                message: `Intermediate log for ${agentName}: ${taskLog.message}`,
+                message: `Intermediate log for video generation agent: ${taskLog.message}`,
               });
               return; // Exit the callback if the task is not yet completed. Another callback will be triggered later.
             }
@@ -376,11 +333,11 @@ export async function queryAgentWithPrompt(
               payments // Payments API instance
             );
 
-            resolve(artifacts);
+            resolve(JSON.parse(artifacts)[0]);
           } catch (error) {
             reject(
               new Error(
-                `Error during validation for ${agentName}: ${error.message}`
+                `Error during validation for video generation agent: ${error.message}`
               )
             );
           }
@@ -391,7 +348,7 @@ export async function queryAgentWithPrompt(
       if (result.status !== 201) {
         return reject(
           new Error(
-            `Error creating task for ${agentName}: ${JSON.stringify(
+            `Error creating task for video generation agent: ${JSON.stringify(
               result.data
             )}`
           )
@@ -401,13 +358,13 @@ export async function queryAgentWithPrompt(
       logMessage(payments, {
         task_id: step.task_id,
         level: "info",
-        message: `Task created successfully for ${agentName}.`,
+        message: `Task created successfully for video generation agent.`,
       });
     } catch (error) {
       // Handle unexpected errors during task creation or setup
       reject(
         new Error(
-          `Error in queryAgentWithPrompt for ${agentName}: ${error.message}`
+          `Error in queryAgentWithPrompt for video generation agent: ${error.message}`
         )
       );
     }
