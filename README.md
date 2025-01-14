@@ -99,7 +99,7 @@ This project demonstrates a real-world implementation of these concepts, integra
     ```
     NVM_API_KEY=your_nevermined_api_key
     NVM_ENVIRONMENT=testing # or staging or production
-    THIS_PLAN_DID=your_plan_did
+    PLAN_DID=your_plan_did
     IMAGE_GENERATOR_PLAN_DID=your_image_plan_did
     AGENT_DID=your_agent_did
     SCRIPT_GENERATOR_DID=your_script_did
@@ -124,7 +124,7 @@ Environment Variables
 |-----------|-------------|
 |`NVM_API_KEY`| Your Nevermined API Key |
 |`NVM_ENVIRONMENT`| Environment (`testing`, `staging`, or `production`) |
-|`THIS_PLAN_DID` | DID of the main subscription plan |
+|`PLAN_DID` | DID of the main subscription plan |
 |`IMAGE_GENERATOR_PLAN_DID` | DID of the plan for image generation |
 |`AGENT_DID` | DID of the orchestrator agent |
 |`SCRIPT_GENERATOR_DID` | DID of the script generator sub-agent |
@@ -156,7 +156,7 @@ In **Nevermined**, a **Plan (PLAN\_DID)** represents a subscription that allows 
 #### Relationship Diagram:
 
 ```css
-[Plan A: THIS_PLAN_DID] ----------- [Orchestrator Agent]
+[Plan A: PLAN_DID] ----------- [Orchestrator Agent]
                                     |-- [Script Generator Agent]
                                     |-- [Character Extractor Agent]
 

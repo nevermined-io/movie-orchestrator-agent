@@ -5,7 +5,7 @@ import {
 } from "./taskValidation";
 import {
   SCRIPT_GENERATOR_DID,
-  THIS_PLAN_DID,
+  PLAN_DID,
   VIDEO_GENERATOR_PLAN_DID,
   VIDEO_GENERATOR_DID,
 } from "../config/env";
@@ -50,7 +50,7 @@ export function processSteps(payments: any) {
           step,
           SCRIPT_GENERATOR_DID,
           "Script Generator",
-          THIS_PLAN_DID,
+          PLAN_DID,
           payments
         );
         break;
