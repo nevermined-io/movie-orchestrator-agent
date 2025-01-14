@@ -1,6 +1,6 @@
 import { initializePayments } from "./payments/paymentsInstance";
 import { processSteps } from "./steps/stepHandlers";
-import { NVM_API_KEY, NVM_ENVIRONMENT, THIS_AGENT_DID } from "./config/env";
+import { NVM_API_KEY, NVM_ENVIRONMENT, AGENT_DID } from "./config/env";
 import { logger } from "./logger/logger";
 
 /**
@@ -26,13 +26,13 @@ async function main() {
      * The `processSteps` function acts as the event handler and processes
      * incoming workflow steps. Key subscription options:
      * - `joinAccountRoom`: Set to `false` since we're interested in agent-specific tasks.
-     * - `joinAgentRooms`: List of agent DIDs to subscribe to (in this case, `THIS_AGENT_DID`).
+     * - `joinAgentRooms`: List of agent DIDs to subscribe to (in this case, `AGENT_DID`).
      * - `subscribeEventTypes`: Specifies the type of events to listen for ("step-updated").
      * - `getPendingEventsOnSubscribe`: Set to `false` to only receive new events.
      */
     await payments.query.subscribe(processSteps(payments), {
       joinAccountRoom: false,
-      joinAgentRooms: [THIS_AGENT_DID],
+      joinAgentRooms: [AGENT_DID],
       subscribeEventTypes: ["step-updated"],
       getPendingEventsOnSubscribe: false,
     });

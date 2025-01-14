@@ -34,21 +34,27 @@ This project is part of a larger workflow that explores the interconnection betw
 * * *
 
 ## Table of Contents
-1. [Introduction](#introduction)
-2. [Getting Started](#getting-started)
-   - [Prerequisites](#prerequisites)
-   - [Installation](#installation)
-3. [Environment Variables](#environment-variables)
-4. [Architecture Overview](#architecture-overview)
-   - [Plans and Agents](#plans-and-agents)
-   - [Workflow and Steps](#workflow-and-steps)
-5. [How to create your own complex agent](#how-to-create-your-own-complex-agent)
-   - [1. Generating Steps](#1-generating-steps)
-   - [2. Sub-Agent Task Management](#2-sub-agent-task-management)
-   - [3. Validating Tasks and Completing Steps](#3-validating-tasks-and-completing-steps)
-   - [4. Managing Balance and Payments](#4-managing-balance-and-payments)
-   - [5. Handling Input and Output Data](#5-handling-input-and-output-data)
-6. [License](#license)
+- [Orchestrator Agent using Nevermined's Payments API (TypeScript)](#orchestrator-agent-using-nevermineds-payments-api-typescript)
+  - [Related Projects](#related-projects)
+      - [Workflow Diagram:](#workflow-diagram)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+  - [Environment Variables](#environment-variables)
+  - [Architecture Overview](#architecture-overview)
+    - [Plans and Agents](#plans-and-agents)
+      - [Relationship Diagram:](#relationship-diagram)
+    - [Workflow and Steps](#workflow-and-steps)
+    - [In this example:](#in-this-example)
+  - [How to create your own complex agent](#how-to-create-your-own-complex-agent)
+    - [1. Generating Steps](#1-generating-steps)
+    - [2. Sub-Agent Task Management](#2-sub-agent-task-management)
+    - [3. Validating Tasks and Completing Steps](#3-validating-tasks-and-completing-steps)
+    - [4. Managing Balance and Payments](#4-managing-balance-and-payments)
+    - [5. Handling Input and Output Data](#5-handling-input-and-output-data)
+  - [License](#license)
 
 ---
 
@@ -95,7 +101,7 @@ This project demonstrates a real-world implementation of these concepts, integra
     NVM_ENVIRONMENT=testing # or staging or production
     THIS_PLAN_DID=your_plan_did
     IMAGE_GENERATOR_PLAN_DID=your_image_plan_did
-    THIS_AGENT_DID=your_agent_did
+    AGENT_DID=your_agent_did
     SCRIPT_GENERATOR_DID=your_script_did
     CHARACTER_EXTRACTOR_DID=your_character_extractor_did
     IMAGE_GENERATOR_DID=your_image_generator_did
@@ -120,7 +126,7 @@ Environment Variables
 |`NVM_ENVIRONMENT`| Environment (`testing`, `staging`, or `production`) |
 |`THIS_PLAN_DID` | DID of the main subscription plan |
 |`IMAGE_GENERATOR_PLAN_DID` | DID of the plan for image generation |
-|`THIS_AGENT_DID` | DID of the orchestrator agent |
+|`AGENT_DID` | DID of the orchestrator agent |
 |`SCRIPT_GENERATOR_DID` | DID of the script generator sub-agent |
 |`CHARACTER_EXTRACTOR_DID` | DID of the character extractor sub-agent |
 |`IMAGE_GENERATOR_DID` | DID of the image generator sub-agent |
