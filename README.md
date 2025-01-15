@@ -21,7 +21,7 @@ This project is part of a larger workflow that explores the interconnection betw
 
 3.  [Video Generator Agent](https://github.com/nevermined-io/video-generator-agent):
     
-    *   Generates realistic character videos based on their descriptions.
+    *   Generates realistic character videos based on their descriptions. 
 
 
 #### Workflow Diagram:
@@ -101,7 +101,6 @@ This project demonstrates a real-world implementation of these concepts, integra
     IMAGE_GENERATOR_PLAN_DID=your_image_plan_did
     AGENT_DID=your_agent_did
     SCRIPT_GENERATOR_DID=your_script_did
-    CHARACTER_EXTRACTOR_DID=your_character_extractor_did
     IMAGE_GENERATOR_DID=your_image_generator_did
     ```
     
@@ -126,7 +125,6 @@ Environment Variables
 |`IMAGE_GENERATOR_PLAN_DID` | DID of the plan for image generation |
 |`AGENT_DID` | DID of the orchestrator agent |
 |`SCRIPT_GENERATOR_DID` | DID of the script generator sub-agent |
-|`CHARACTER_EXTRACTOR_DID` | DID of the character extractor sub-agent |
 |`IMAGE_GENERATOR_DID` | DID of the image generator sub-agent |
 
 * * *
@@ -181,11 +179,9 @@ In **Nevermined**, a **Plan (PLAN\_DID)** represents a subscription that allows 
 1.  **Init Step**:
     *   Defines and schedules subsequent steps.
 2.  **Generate Script**:
-    *   Uses Script Generator to create a story.
-3.  **Extract Characters**:
-    *   Uses Character Extractor to derive characters from the story.
-4.  **Generate Images for Characters**:
-    *   Assigns tasks to Image Generator for creating character images.
+    *   Uses Script Generator to create a story and a list of character descriptions.
+4.  **Generate Videos for Characters**:
+    *   Assigns tasks to Video Generator for creating character cinematic videos.
 
 * * *
 
@@ -199,12 +195,11 @@ The `handleInitStep` function initializes the workflow by defining the subsequen
 ```typescript
 export async function handleInitStep(step: any, payments: any) {
   const scriptStepId = generateStepId();
-  const characterStepId = generateStepId();
-  const imageStepId = generateStepId();
+  const videoStepId = generateStepId();
 
   const steps = [
     { step_id: scriptStepId, task_id: step.task_id, name: "generateScript", predecessor: step.step_id },
-    { step_id: imageStepId, task_id: step.task_id, name: "generateVideoForCharacters", predecessor: characterStepId },
+    { step_id: videoStepId, task_id: step.task_id, name: "generateVideoForCharacters", predecessor: scriptStepId },
   ];
 
   await payments.query.createSteps(step.did, step.task_id, { steps });
