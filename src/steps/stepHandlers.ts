@@ -46,13 +46,7 @@ export function processSteps(payments: any) {
         await handleInitStep(step, payments);
         break;
       case "generateScript":
-        await handleScriptGeneration(
-          step,
-          SCRIPT_GENERATOR_DID,
-          "Script Generator",
-          PLAN_DID,
-          payments
-        );
+        await handleScriptGeneration(step, payments);
         break;
       case "generateVideoForCharacters":
         await handleVideoGenerationForCharacters(step, payments);
@@ -125,24 +119,17 @@ export async function handleInitStep(step: any, payments: any) {
  * Ensures sufficient balance in the plan and validates task completion.
  *
  * @param step - The current step being processed.
- * @param agentDid - The DID of the sub-agent responsible for the task.
- * @param agentName - A friendly name for the sub-agent for logging purposes.
- * @param planDid - The DID of the plan associated with the agent.
  * @param payments - Payments API instance.
  */
-export async function handleScriptGeneration(
-  step: any,
-  agentDid: string,
-  agentName: string,
-  planDid: string,
-  payments: any
-) {
+export async function handleScriptGeneration(step: any, payments: any) {
   // Check if the plan has sufficient balance and attempt to replenish if needed
-  const hasBalance = await ensureSufficientBalance(planDid, step, payments);
+  const hasBalance = await ensureSufficientBalance(PLAN_DID, step, payments);
   if (!hasBalance) return;
 
   // Retrieve access permissions for the agent
-  const accessConfig = await payments.query.getServiceAccessConfig(agentDid);
+  const accessConfig = await payments.query.getServiceAccessConfig(
+    SCRIPT_GENERATOR_DID
+  );
 
   // Define the data payload for the task
   const taskData = {
@@ -153,12 +140,14 @@ export async function handleScriptGeneration(
   };
 
   logger.info(
-    `Creating task for ${agentName}... and data: ${JSON.stringify(taskData)}`
+    `Creating task for Script Generator Agent... and data: ${JSON.stringify(
+      taskData
+    )}`
   );
 
   // Create a task and validate its completion through a callback
   const result = await payments.query.createTask(
-    agentDid,
+    SCRIPT_GENERATOR_DID,
     taskData,
     accessConfig,
     async (data) => {
@@ -167,7 +156,7 @@ export async function handleScriptGeneration(
       // Validate the task upon successful completion
       await validateScriptGenerationTask(
         taskLog.task_id,
-        agentDid,
+        SCRIPT_GENERATOR_DID,
         accessConfig,
         step,
         payments
@@ -180,8 +169,10 @@ export async function handleScriptGeneration(
     level: result.status === 201 ? "info" : "error",
     message:
       result.status === 201
-        ? `Task created successfully with ${agentName}.`
-        : `Error querying ${agentName}: ${JSON.stringify(result.data)}`,
+        ? `Task ${result.data.task.task_id} created successfully for Script Generator Agent.`
+        : `Error querying Script Generator Agent: ${JSON.stringify(
+            result.data
+          )}`,
   });
 }
 
@@ -296,6 +287,10 @@ export async function queryAgentWithPrompt(
         artifacts: [], // Placeholder for input artifacts, if any
       };
 
+      logger.info(
+        `Getting service access config for video generation agent: ${VIDEO_GENERATOR_DID}`
+      );
+
       // Step 1: Retrieve access permissions for the agent
       const accessConfig = await payments.query.getServiceAccessConfig(
         VIDEO_GENERATOR_DID
@@ -318,11 +313,6 @@ export async function queryAgentWithPrompt(
               !taskLog.task_status ||
               taskLog.task_status !== AgentExecutionStatus.Completed
             ) {
-              await logMessage(payments, {
-                task_id: step.task_id,
-                level: "info",
-                message: `Intermediate log for video generation agent: ${taskLog.message}`,
-              });
               return; // Exit the callback if the task is not yet completed. Another callback will be triggered later.
             }
 
@@ -358,7 +348,7 @@ export async function queryAgentWithPrompt(
       logMessage(payments, {
         task_id: step.task_id,
         level: "info",
-        message: `Task created successfully for video generation agent.`,
+        message: `Task  ${result.data.task.task_id} created successfully for video generation agent.`,
       });
     } catch (error) {
       // Handle unexpected errors during task creation or setup
